@@ -7,5 +7,4 @@ matplotlib
 seaborn
 feedparser
 requests
-RidgeCV
-sklearn
+scikit-learn
