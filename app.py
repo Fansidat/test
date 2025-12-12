@@ -56,19 +56,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 with st.expander("ℹ️ Project Background & Motivation (項目背景與動機)"):
     st.markdown("""
-    **Motivation（動機）:**
     In the volatile cryptocurrency market, retail investors often lack professional tools to analyze the correlation between crypto assets and macroeconomic factors.
-    <br>(在波動劇烈的加密貨幣市場中，散戶投資者往往缺乏專業工具來分析加密資產與宏觀經濟因素之間的相關性。)
-    
-    **Objective（目標）:**
+    <br>在波動劇烈的加密貨幣市場中，散戶投資者往往缺乏專業工具來分析加密資產與宏觀經濟因素之間的相關性。
+
     This dashboard implements an **end-to-end data science pipeline** (Collection $\\rightarrow$ Cleaning $\\rightarrow$ Modeling $\\rightarrow$ Visualization) to provide:
-    <br>（这个仪表板实现了一个端到端的数据科学管道（收集→清洗→建模→可视化）来提供：）
+    <br>这个仪表板实现了一个端到端的数据科学管道（收集→清洗→建模→可视化）来提供：
     1. **Real-time Monitoring:** Price action and Sentiment analysis.
-    <br>(即時監測：價格走勢與情緒分析。)
+    <br>即時監測：價格走勢與情緒分析。
     2. **Risk Assessment:** Volatility, Sharpe Ratio, and Max Drawdown.
-    <br>(風險評估：波動率、夏普比率與最大回撤。)
+    <br>風險評估：波動率、夏普比率與最大回撤。
     3. **Predictive Modeling:** Monte Carlo simulations for future price paths.
-    <br>(預測建模：蒙特卡洛模擬未來價格路徑。)
+    <br>預測建模：蒙特卡洛模擬未來價格路徑。
     """, unsafe_allow_html=True)
 # --- 3. Sidebar Control ---
 st.sidebar.header("🎛️ Analysis Controls (分析控制台)")
@@ -333,11 +331,10 @@ with tabs[1]:
 # === Tab 3: Monte Carlo ===
 with tabs[2]:
     st.subheader("🤖 AI-Enhanced Monte Carlo Simulation (AI 增強蒙特卡洛模擬)")
-    
-    # 布局：左侧图表，右侧数据
+
     col_sim, col_res = st.columns([3, 1])
     
-    # --- 1. Data Preparation & Feature Engineering (特征工程) ---
+    # --- 1. Data Preparation & Feature Engineering (特徵工程) ---
     df_ml = main_df.copy()
     df_ml['Return'] = df_ml['Close'].pct_change()
     df_ml['Log_Return'] = np.log(1 + df_ml['Return'])
