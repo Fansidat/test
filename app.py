@@ -185,7 +185,7 @@ c1.metric(
 )
 # Column 2: Total Return
 c2.metric(
-    "Return (Period 累計)", 
+    "Return (累計回報)", 
     f"{total_ret:+.2f}%",
     help="Return since the start of the selected date range"
 )
@@ -197,8 +197,8 @@ c4.metric("Volatility (年化波動)", f"{volatility:.1f}%", delta_color="invers
 with c5:
     if fng_val is not None:
         st.metric(
-            f"F&G Index（恐慌指數） ({fng_label})", 
-            f"{fng_val}/100", 
+            f"F&G Index（恐慌指數）)", 
+            f"{fng_val}/100  ({fng_label}", 
             f"{fng_change:+d} vs Yest.", 
             delta_color="off"
         )
