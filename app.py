@@ -179,7 +179,7 @@ volatility = returns.std() * np.sqrt(252) * 100
 time_label = "15m" if interval_setting == "15m" else "Day"
 # Column 1: Price
 c1.metric(
-    "Price", 
+    "Price（現價）", 
     f"${curr_p:,.2f}", 
     f"{ret_pct:+.2f}% vs Prev. {time_label}" 
 )
@@ -197,7 +197,7 @@ c4.metric("Volatility (年化波動)", f"{volatility:.1f}%", delta_color="invers
 with c5:
     if fng_val is not None:
         st.metric(
-            f"F&G Index ({fng_label})", 
+            f"F&G Index（恐慌指數） ({fng_label})", 
             f"{fng_val}/100", 
             f"{fng_change:+d} vs Yest.", 
             delta_color="off"
