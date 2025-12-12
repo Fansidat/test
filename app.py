@@ -10,6 +10,8 @@ import seaborn as sns
 from datetime import datetime, timedelta
 import feedparser
 import requests
+from sklearn.linear_model import RidgeCV
+from sklearn.metrics import r2_score
 # --- 1. System Config & CSS (系統配置與樣式) ---
 st.set_page_config(page_title="FinData AI Terminal", page_icon="📊", layout="wide")
 st.markdown("""
@@ -46,7 +48,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 # --- 2. Title & Author Info (標題與作者資訊) ---
 st.title("📊 Integrated Data Science Dashboard: Quantitative Analysis of Crypto & Macro Assets")
-st.title("  基于多源数据的金融资产量化分析与可视化看板")
+st.title("  基於多源數據的金融資產量化分析與可視化看板")
 st.markdown("""
 <div class="author-line">
     <b>Author:</b> Fan Xing (樊星) | <b>ID:</b> MC566736 | <b>Institution:</b> University of Macau | <b>Course:</b> CISC7201 Data Science Programming
@@ -197,15 +199,15 @@ c4.metric("Volatility (年化波動)", f"{volatility:.1f}%", delta_color="invers
 with c5:
     if fng_val is not None:
         st.metric(
-            f"F&G Index（恐慌指數）)", 
-            f"{fng_val}/100  ({fng_label}", 
+            f"F&G Index（恐慌指數）", 
+            f"{fng_val}/100  ({fng_label}）", 
             f"{fng_change:+d} vs Yest.", 
             delta_color="off"
         )
     else:
         st.metric("Sentiment", "N/A", "API Error")
 # --- 7. Main Tabs (核心功能區) ---
-tabs = st.tabs(["🕯️ Market Overview (市場概覽)", "📈 Advanced Analytics (深度量化)", "🎲 Monte Carlo (隨機模擬)"])
+tabs = st.tabs(["🕯️ Market Overview (市場概覽)", "📈 Advanced Analytics (深度量化)", "🎲 Monte Carlo (蒙特卡洛模型預測)"])
 # === Tab 1: Market Overview ===
 with tabs[0]:
     # K-Line Chart
@@ -330,54 +332,142 @@ with tabs[1]:
         else: st.info("Requires >1 year of data for seasonality analysis. (需超過1年數據進行季節性分析。)")
 # === Tab 3: Monte Carlo ===
 with tabs[2]:
-    st.subheader("🎲 Monte Carlo Stochastic Model (蒙特卡洛隨機模型)")
-   
+    st.subheader("🤖 AI-Enhanced Monte Carlo Simulation (AI 增強蒙特卡洛模擬)")
+    
+    # 布局：左侧图表，右侧数据
     col_sim, col_res = st.columns([3, 1])
-   
-    days_pred = 30
-    sims = 100
-    last_price = main_df['Close'].iloc[-1]
-    log_ret = np.log(1 + main_df['Close'].pct_change())
-    drift = log_ret.mean() - (0.5 * log_ret.var())
-    sigma = log_ret.std()
-   
-    future_dates = [main_df.index[-1] + timedelta(days=x) for x in range(1, days_pred + 1)]
-    paths = np.zeros((days_pred, sims))
-    paths[0] = last_price
-   
-    for t in range(1, days_pred):
-        shock = drift + sigma * np.random.normal(0, 1, sims)
-        paths[t] = paths[t-1] * np.exp(shock)
-   
-    with col_sim:
-        fig_mc = go.Figure()
-        fig_mc.add_trace(go.Scatter(x=main_df.index[-60:], y=main_df['Close'].iloc[-60:], name='History (歷史)', line=dict(color='black')))
-        for i in range(min(50, sims)):
-            fig_mc.add_trace(go.Scatter(x=future_dates, y=paths[:, i], mode='lines', line=dict(color='rgba(46, 134, 222, 0.1)'), showlegend=False))
-        fig_mc.add_trace(go.Scatter(x=future_dates, y=paths.mean(axis=1), name='Mean Path (平均路徑)', line=dict(color='red', width=3)))
-        fig_mc.update_layout(height=500, title=f"30-Day Forward Simulation (30天前瞻模擬)", margin=dict(t=30))
-        st.plotly_chart(fig_mc, use_container_width=True)
-       
-    with col_res:
-        st.markdown("### 📊 Forecast Stats (預測統計)")
-        exp_price = paths.mean(axis=1)[-1]
-        exp_ret_mc = (exp_price - last_price)/last_price*100
-       
-        st.metric("Expected Price (預期價格)", f"${exp_price:,.2f}")
-        st.metric("Exp. Return (預期回報)", f"{exp_ret_mc:+.2f}%")
-        st.markdown(f"""
-        <div class="insight-box">
-        <b>Logic (預測邏輯):</b><br>
-        Based on Geometric Brownian Motion (GBM).<br>
-        (基於幾何布朗運動 (GBM)。)<br>
-        • <b>Drift:</b> {drift:.5f}<br>
-        (• <b>漂移：</b> {drift:.5f})<br>
-        • <b>Volatility:</b> {sigma:.5f}<br>
-        (• <b>波動率：</b> {sigma:.5f})<br>
-        The red line represents the statistical average of {sims} simulated future paths.
-        <br>(紅線代表{sims}條模擬未來路徑的統計平均。)
-        </div>
-        """, unsafe_allow_html=True)
+    
+    # --- 1. Data Preparation & Feature Engineering (特征工程) ---
+    df_ml = main_df.copy()
+    df_ml['Return'] = df_ml['Close'].pct_change()
+    df_ml['Log_Return'] = np.log(1 + df_ml['Return'])
+    
+    # Construct Features (Lag, Volatility, Momentum)
+    df_ml['Lag_1'] = df_ml['Log_Return'].shift(1)
+    df_ml['Lag_2'] = df_ml['Log_Return'].shift(2)
+    df_ml['Lag_5'] = df_ml['Log_Return'].shift(5)
+    df_ml['Vol_5'] = df_ml['Log_Return'].rolling(5).std()
+    df_ml['Momentum'] = df_ml['Close'] / df_ml['Close'].shift(5) - 1
+    df_ml = df_ml.dropna()
+    
+    if len(df_ml) > 30:
+        # --- 2. Train Self-Optimizing Model (RidgeCV) ---
+        X = df_ml[['Lag_1', 'Lag_2', 'Lag_5', 'Vol_5', 'Momentum']]
+        y = df_ml['Log_Return']
+        
+        # Auto-tune alpha based on market noise
+        model = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 100.0], cv=5)
+        model.fit(X, y)
+        
+        # Predict "Drift" using latest market data
+        current_features = X.iloc[[-1]]
+        predicted_drift = model.predict(current_features)[0]
+        historical_drift = df_ml['Log_Return'].mean()
+        r2 = model.score(X, y) # Model Confidence
+        
+        # --- 3. Run Comparative Simulations ---
+        sims = 100
+        days_pred = prediction_days # Uses Sidebar Slider input
+        
+        sigma = df_ml['Log_Return'].std()
+        last_price = main_df['Close'].iloc[-1]
+        future_dates = [main_df.index[-1] + timedelta(days=x) for x in range(1, days_pred + 1)]
+        
+        # Helper Function
+        def run_simulation(mu, sigma, sims, days, start_price):
+            paths = np.zeros((days, sims))
+            paths[0] = start_price
+            adj_drift = mu - (0.5 * sigma**2)
+            for t in range(1, days):
+                shock = np.random.normal(0, 1, sims)
+                paths[t] = paths[t-1] * np.exp(adj_drift + sigma * shock)
+            return paths
+            
+        # Run Both Models
+        paths_base = run_simulation(historical_drift, sigma, sims, days_pred, last_price)
+        paths_ai = run_simulation(predicted_drift, sigma, sims, days_pred, last_price)
+        
+        # --- 4. Visualization (Interactive Plotly) ---
+        with col_sim:
+            fig_mc = go.Figure()
+            
+            # A. Historical Context (Last 90 Days)
+            fig_mc.add_trace(go.Scatter(
+                x=main_df.index[-90:], y=main_df['Close'].iloc[-90:],
+                name='History (近90天)', line=dict(color='black', width=2),
+                legendgroup='history'
+            ))
+            
+            # B. Baseline Model (Grey Dashed)
+            fig_mc.add_trace(go.Scatter(
+                x=future_dates, y=paths_base.mean(axis=1),
+                name='Baseline (Historical Mean)',
+                line=dict(color='gray', width=2, dash='dot'),
+                legendgroup='baseline'
+            ))
+            
+            # C. AI Model (Colored Solid)
+            ai_color = '#27ae60' if predicted_drift > 0 else '#c0392b'
+            fig_mc.add_trace(go.Scatter(
+                x=future_dates, y=paths_ai.mean(axis=1),
+                name=f'AI-Enhanced (RidgeCV)',
+                line=dict(color=ai_color, width=3)
+            ))
+            
+            # D. Confidence Interval (AI Model)
+            upper = np.percentile(paths_ai, 95, axis=1)
+            lower = np.percentile(paths_ai, 5, axis=1)
+            fig_mc.add_trace(go.Scatter(x=future_dates, y=upper, mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'))
+            fig_mc.add_trace(go.Scatter(
+                x=future_dates, y=lower, fill='tonexty', mode='lines', line=dict(width=0),
+                fillcolor=f"rgba({int(ai_color[1:3],16)}, {int(ai_color[3:5],16)}, {int(ai_color[5:7],16)}, 0.15)",
+                name='AI 95% Conf. Interval'
+            ))
+            
+            # Add Vertical Divider
+            fig_mc.add_vline(x=main_df.index[-1], line_width=1, line_dash="dash", line_color="gray")
+            
+            fig_mc.update_layout(
+                title=f"AI Forecast vs Baseline ({days_pred}-Day Projection)",
+                height=500, xaxis_rangeslider_visible=False,
+                hovermode='x unified',
+                legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(255,255,255,0.8)")
+            )
+            st.plotly_chart(fig_mc, use_container_width=True)
+            
+        # --- 5. Metrics & Insights ---
+        with col_res:
+            st.markdown("### 🧠 AI Analysis")
+            
+            # Calculate final stats
+            exp_p_ai = paths_ai.mean(axis=1)[-1]
+            exp_ret_ai = (exp_p_ai - last_price) / last_price * 100
+            exp_ret_base = (paths_base.mean(axis=1)[-1] - last_price) / last_price * 100
+            
+            # Display Metrics
+            st.metric("AI Target Price", f"${exp_p_ai:,.2f}")
+            st.metric("AI Exp. Return", f"{exp_ret_ai:+.2f}%", delta=f"{exp_ret_ai - exp_ret_base:+.2f}% vs Base")
+            
+            # Display Model Tech Specs
+            st.info(f"""
+            **Model Specs:**
+            - **Algorithm:** RidgeCV (Auto-Tuned)
+            - **Best Alpha:** {model.alpha_}
+            - **R² Score:** {r2:.4f}
+            """)
+            
+            st.markdown(f"""
+            <div class="insight-box">
+            <b>🤖 Model Logic:</b><br>
+            The AI model analyzes <b>Momentum, Volatility, and Lagged Returns</b> to predict future drift.<br>
+            • <b>Baseline Drift:</b> {historical_drift:.5f}<br>
+            • <b>AI Predicted Drift:</b> {predicted_drift:.5f}<br>
+            The difference between the solid line (AI) and dashed line (Baseline) represents the <b>Alpha</b> generated by the machine learning algorithm.
+            </div>
+            """, unsafe_allow_html=True)
+            
+    else:
+        st.warning("⚠️ Insufficient data for Machine Learning analysis. Please select a longer time window (e.g., 1Y).")
 # --- Footer ---
 st.markdown("---")
 st.caption(f"**CISC7201 Final Project** | Data Points: {len(main_df)*len(main_df.columns):,} | Model: Monte Carlo (GBM)")
